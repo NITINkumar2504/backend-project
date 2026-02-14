@@ -44,18 +44,25 @@ const userSchema = new Schema({
     }
     },
     {
-    timeseries : true
+    timestamps : true
     }
 )
 
 // event and callback
 userSchema.pre('save' , async function(next){
-    if(!this.isModified('password')) return next()
+    if(!this.isModified('password')) return
 
     // encrypt only when password is modified or set for first time
     this.password = await bcrypt.hash(this.password, 10)
-    next()
 })
+// userSchema.pre('save', function(next) {
+//    ...
+//    next()
+// })
+// userSchema.pre('save', async function() {
+//    ...
+// })   should not use next() with async function - If function is async → it automatically returns a Promise
+
 // middleware flag (next) and pass flag (next) forward in end  
 // not using arrow function, 
 // In JavaScript, the behavior of the this keyword differs between arrow functions and regular functions.

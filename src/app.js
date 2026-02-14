@@ -30,6 +30,7 @@ app.use(cookieParser())
 import userRouter from './routes/user.routes.js' 
 
 // routes declaration
+// generally we use app.get(route, controller) but since we have separated routes we have to use middleware to get routes
 // app.use('/users', userRouter)
 app.use('/api/v1/users', userRouter)
 

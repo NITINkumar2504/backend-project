@@ -19,6 +19,7 @@ const registerUser = asyncHandler( async (req, res) => {
     // STEP 1:
     // extracting details from req.body (destructure)
     const {fullname, email, username, password} = req.body
+    // console.log(req.body)
     // console.log('fullname:', fullname)
     // console.log('email:', email)
     // console.log('username:', username)
@@ -32,7 +33,7 @@ const registerUser = asyncHandler( async (req, res) => {
 
     // check all fields at once
     if(
-        [fullname, email, username, password].some((field) => field?.trim() === "") //Determines whether the specified callback function returns true for any element of an array (if it returns true, then there is an empty field)
+        [fullname, email, username, password].some((field) => field === undefined || field?.trim() === "") //Determines whether the specified callback function returns true for any element of an array (if it returns true, then there is an empty field)
     ){
         throw new apiError(400, "all fields are required")
     }
@@ -50,9 +51,11 @@ const registerUser = asyncHandler( async (req, res) => {
     //  STEP 3:
     // const existedUser = User.findOne({ email })  for only one field
 
-    const existedUser = User.findOne({   // for multiple fields
+    const existedUser = await User.findOne({   // for multiple fields
         $or: [{ email }, { username }]     
     })
+
+    // console.log(existedUser)
 
     if(existedUser){
         throw new apiError(409, "user with email or username already exists")
@@ -62,7 +65,14 @@ const registerUser = asyncHandler( async (req, res) => {
 
     // STEP 4:  (multer provide file access)
     const avatarLocalPath = req.files?.avatar[0]?.path
-    const coverImageLocalPath = req.files?.coverImage[0]?.path
+    const coverImageLocalPath = req.files?.coverImage?.[0]?.path
+
+    // let coverImageLocalPath    // we can also check like this, without optional chaining
+    // if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+    //     coverImageLocalPath = req.files.coverImage[0].path
+    // }
+
+    // console.log(req.files)
 
     if(!avatarLocalPath){
         throw new apiError(400, "avatar file is required")
@@ -73,16 +83,18 @@ const registerUser = asyncHandler( async (req, res) => {
     const avatar = await uploadOnCloudinary(avatarLocalPath)
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
+    // console.log(avatar)
+
     if(!avatar){
-        throw new apiError(400, "avatar file is required") 
+        throw new apiError(400, "avatar file is requireda") 
     }
 
 
     // STEP 6:
     const user = await User.create({
         fullname,
-        avatar : avatar.url,
-        coverImage : coverImage?.url || '',    // we have not checked coverImage like avatar, if there is coverimage then use url else empty
+        avatar : avatar.secure_url,
+        coverImage : coverImage?.secure_url || '',   // we have not checked coverImage like avatar, if there is coverimage then use url else empty
         password,
         email,
         username : username.toLowerCase() 
