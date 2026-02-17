@@ -155,7 +155,7 @@ const loginUser = asyncHandler( async(req, res) => {
 
     // STEP 3:
     const user = await User.findOne({    // return first matched entry
-        $or : [{ email } , { username }]     // on basis of email or username
+        $or : [{ email } , { username }]     // on basis of email or username $or is mongoDB operator
     })  
     
     if(!user){
@@ -184,24 +184,50 @@ const loginUser = asyncHandler( async(req, res) => {
 
     return res
     .status(200)
-    .cookie('accessToken', accessToken, options)
+    .cookie('accessToken', accessToken, options)     // setting cookies
     .cookie('refreshToken', refreshToken, options)
     .json(
         new apiResponse(
             200, 
             {
-                user : loggedInUser, 
-                accessToken, 
+                user : loggedInUser,      
+                accessToken,       // when user try to save cookies in localStorage, in mobile applications 
                 refreshToken
             },
             'User logged In successfully'
         )
     )
-
 })
 
 const logoutUser = asyncHandler ( async (req, res) => {
-    
+    // clear cookies
+    // remove refreshToken 
+
+    // to logout we need user access and to get user access we need middleware (auth middleware)
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set : {
+                refreshToken : undefined    // removing refreshToken from DB
+            }
+        },
+        {
+            new: true   // for updated values in res
+        }
+    )
+
+    const options = {
+        httpOnly : true,   // not modifiable on frontend, only server can modify
+        secure : true
+    }
+
+    return res
+    .status(200)
+    .clearCookie('accessToken', options)  // removing cookies
+    .clearCookie('refreshToken', options)
+    .json(
+        new apiResponse(200, {}, 'User logged out successfully')      // returning empty object
+    )    
 })
 
-export {registerUser, loginUser}
+export {registerUser, loginUser, logoutUser}
