@@ -1,8 +1,8 @@
 // verify if user exist or not
 import jwt from "jsonwebtoken";
-import { apiError } from "../utils/apiError";
-import { asyncHandler } from "../utils/asyncHandler";
-import { User } from "../models/user.models";
+import { apiError } from "../utils/apiError.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { User } from "../models/user.models.js";
 
 export const verifyJWT = asyncHandler(async (req, _, next) => {   // if a param is unused we can use _, here we are not using response
     try {
@@ -25,6 +25,7 @@ export const verifyJWT = asyncHandler(async (req, _, next) => {   // if a param 
     
         req.user = user
         next()
+        
     } catch (error) {
         throw new apiError(401, error?.message || 'Invalid access token')
     }
