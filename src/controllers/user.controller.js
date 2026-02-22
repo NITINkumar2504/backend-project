@@ -3,6 +3,7 @@ import { apiError } from '../utils/apiError.js'
 import { User } from '../models/user.models.js'
 import { uploadOnCloudinary } from '../utils/cloudinary.js'
 import { apiResponse } from '../utils/apiResponse.js'
+import { deleteFile } from '../utils/deleteFiles.js'
 import jwt from 'jsonwebtoken'
 
 const generateAccessAndRefreshToken = async (userId) => {
@@ -320,7 +321,7 @@ const updateAccountDetails = asyncHandler( async(req, res) => {
         throw new apiError(400, 'All fields are required')
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user._id,
         {
             $set : {
@@ -354,6 +355,14 @@ const updateUserAvatar = asyncHandler( async(req, res) => {
 
     if(!avatar){
         throw new apiError(400, 'error while uploading avatar')
+    }
+
+    if(req.user?.avatar) {
+        const deleteAvatar = await deleteFile(req.user.avatar);
+
+        if (deleteAvatar?.result !== 'ok') {
+            console.log('Old avatar deletion failed');
+        }
     }
 
     const user = await User.findByIdAndUpdate(
@@ -392,6 +401,14 @@ const updateUserCoverImage = asyncHandler( async(req, res) => {
         throw new apiError(400, 'error while uploading coverImage')
     }
 
+    if(req.user?.CoverImage) {
+        const deleteCoverImage = await deleteFile(req.user.CoverImage);
+
+        if (deleteCoverImage?.result !== 'ok') {
+            console.log('Old cover image deletion failed');
+        }
+    }
+
     const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
@@ -415,6 +432,80 @@ const updateUserCoverImage = asyncHandler( async(req, res) => {
     )
 })
 
+const getUserChannelProfile = asyncHandler( async(req, res) => {
+    const {username} = req.params
+
+    if(!username?.trim()){
+        throw new apiError(400, 'username is missing')
+    }
+
+    // return array of object
+    const channel = await User.aggregate([
+        // search for single document with username
+        {
+            $match : {
+                username : username?.toLowerCase()
+            }
+        },
+        // now we have one document with username (look for subscribers using channel)
+        {   
+            $lookup : {
+                from : 'subscriptions',
+                localField : '_id',
+                foreignField : 'channel',
+                as : 'subscribers'    // array containing the matched documents
+            }
+        },
+        {   // for subscribed channels
+            $lookup : {
+                from : 'subscriptions',
+                localField : '_id',
+                foreignField : 'subscriber',
+                as : 'subscribedTo'  // array containing the matched documents
+            }
+        },
+        {   // add new fields in document
+            $addFields : {
+                subscriberCount : {
+                    $size : '$subscribers'
+                },
+                channelsSubscribedCount : {
+                    $size : '$subscribedTo'
+                },
+                isSubscribed : {
+                    $cond : {   // check if user is present in subscribers
+                        if : {$in : [req.user?._id, '$subscribers.subscriber']},
+                        then : true,
+                        else : false
+                    }
+                }
+            }
+        },
+        {   // fields to return, 1 -> yes (used to return selected fields only, avoid network traffic)
+            $project : {
+                fullname : 1,
+                usernamme : 1,
+                subscriberCount : 1,
+                channelsSubscribedCount : 1,
+                isSubscribed : 1,
+                avatar : 1,
+                coverImage : 1,
+                email : 1
+            }
+        }
+    ])
+
+    if(!channel?.length){
+        throw new apiError(400, 'channel does not exists')
+    }
+
+    return res
+    .status(200)
+    .json(
+        new apiResponse(200, channel[0], 'channel fetched successfully')
+    )
+})
+
 export {registerUser, 
     loginUser, 
     logoutUser, 
@@ -423,5 +514,6 @@ export {registerUser,
     getCurrentUser, 
     updateAccountDetails, 
     updateUserAvatar, 
-    updateUserCoverImage
+    updateUserCoverImage,
+    getUserChannelProfile
 }
