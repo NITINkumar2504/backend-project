@@ -5,6 +5,7 @@ import { uploadOnCloudinary } from '../utils/cloudinary.js'
 import { apiResponse } from '../utils/apiResponse.js'
 import { deleteFile } from '../utils/deleteFiles.js'
 import jwt from 'jsonwebtoken'
+import mongoose from 'mongoose'
 
 const generateAccessAndRefreshToken = async (userId) => {
     try{
@@ -439,7 +440,7 @@ const getUserChannelProfile = asyncHandler( async(req, res) => {
         throw new apiError(400, 'username is missing')
     }
 
-    // return array of object
+    // return array of object (here we will have only one object in array bcoz we are matching username and username is unique)
     const channel = await User.aggregate([
         // search for single document with username
         {
@@ -457,7 +458,8 @@ const getUserChannelProfile = asyncHandler( async(req, res) => {
             }
         },
         {   // for subscribed channels
-            $lookup : {
+            $lookup : {   // The $lookup stage adds a new array field to each input document having object or objects 
+                // The $lookup operation combines documents by matching a field from the input documents to a field in the "foreign" (lookup) collection and adds the matched documents as a new array field to the output.
                 from : 'subscriptions',
                 localField : '_id',
                 foreignField : 'subscriber',
@@ -495,6 +497,7 @@ const getUserChannelProfile = asyncHandler( async(req, res) => {
         }
     ])
 
+    console.log(channel)
     if(!channel?.length){
         throw new apiError(400, 'channel does not exists')
     }
@@ -506,6 +509,58 @@ const getUserChannelProfile = asyncHandler( async(req, res) => {
     )
 })
 
+const getUserWatchHistory = asyncHandler( async(req, res) => {
+    // return array having first value as object
+    const user = await User.aggregate([
+        {
+            $match : {
+                _id : new mongoose.Types.ObjectId(req.user._id)   // why? because we get string in _id and mongoose internally convert it in mongoDB object id but here it does not work, so we manually create object id form string (mongoose does not work in aggregation pipeline)
+            }
+        },
+        {
+            $lookup : {
+                from : 'videos',
+                localField : 'watchHistory',
+                foreignField : '_id',
+                as : 'watchHistory',   // we have documents in watchHistory but no info of owner (use nested pipeline for owner details)
+                pipeline : [
+                    {
+                        $lookup : {
+                            from : 'users',
+                            localField : 'owner',
+                            foreignField : '_id',
+                            as : 'owner',   // now we have owner details
+                            pipeline : [
+                                {
+                                    $project : {   // project only necessary info in owner 
+                                        fullname : 1,
+                                        avatar : 1,
+                                        username : 1
+                                    },
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields : {
+                            owner : {
+                                $first : '$owner'  // add field having first value of array {i.e., object} from owner lookup result (for frontend convenience only) optional
+                            }                           
+                        }
+                    }
+                ]
+            }
+        },
+    ])
+
+    return res
+    .status(200)
+    .json(
+        new apiResponse(200, user[0].watchHistory, 'watch History fetched successfully')
+    )
+})
+
+
 export {registerUser, 
     loginUser, 
     logoutUser, 
@@ -515,5 +570,6 @@ export {registerUser,
     updateAccountDetails, 
     updateUserAvatar, 
     updateUserCoverImage,
-    getUserChannelProfile
+    getUserChannelProfile,
+    getUserWatchHistory
 }
