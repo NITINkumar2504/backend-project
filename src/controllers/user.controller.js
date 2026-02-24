@@ -213,8 +213,8 @@ const logoutUser = asyncHandler ( async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         {
-            $set : {
-                refreshToken : undefined    // removing refreshToken from DB
+            $unset : {    // In MongoDB, the $unset operator is used to delete a specific field (or fields) from a document, The value specified in the $unset expression (e.g., "", 1, or true) is ignored; only the field name matters { $unset: { <field1>: "", <field2>: "", ... } }
+                refreshToken : true    // removing refreshToken from DB
             }
         },
         {
@@ -262,17 +262,17 @@ const refreshAccessToken = asyncHandler( async (req, res) => {
             secure : true
         }
     
-        const {newRefreshToken, accessToken} = await generateAccessAndRefreshToken(user._id)
+        const {refreshToken, accessToken} = await generateAccessAndRefreshToken(user._id)
     
         return res
         .status(200)
+        .cookie('refreshToken', refreshToken, options)
         .cookie('accessToken', accessToken, options)
-        .cookie('refreshToken', newRefreshToken, options)
         .json(
             new apiResponse(
                 200,
                 {
-                    refreshToken : newRefreshToken,   // updating refresh token value
+                    refreshToken,   // updating refresh token value
                     accessToken
                 },
                 'access token refreshed'
